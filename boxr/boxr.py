@@ -2,11 +2,16 @@ import json
 import box
 import gevent
 
-def get_subfolders(id, box_client):
+def get_subfolders(id, box_client, pool=None):
     """
     Recursively walk sub-directories and return folder ids/names and file
     id/names in a nested dictionary.
     """
+
+    # If no pool is given, create a default pool.
+    if not pool:
+        pool = gevent.pool.Pool()
+    print pool.size
 
     def get_subfolders_inner(id):
         folder_json = box_client.get_folder(id)
@@ -21,7 +26,7 @@ def get_subfolders(id, box_client):
                 for x in folder_json['item_collection']['entries']
                 if x['type'] == 'file']
             # Spawn greenlets to get subfolders
-            jobs = [gevent.spawn(get_subfolders_inner, f_id)
+            jobs = [pool.spawn(get_subfolders_inner, f_id)
                     for f_id in folder_ids]
         # Wait until greenlets finish before returning
         gevent.joinall(jobs)
@@ -35,7 +40,12 @@ def get_subfolders(id, box_client):
 
     return get_subfolders_inner(id)
 
-def bulk_create_folders(folder_path_list, box_client, parent_id=0):
+def bulk_create_folders(folder_path_list, box_client, parent_id=0, pool=None):
+
+    # If no pool is given, create a default pool.
+    if pool:
+        pool = gevent.pool.Pool()
+
     # Keep a map of created/discovered folders to save HTTP requests.
     # This structure is shared and updated by all the greenlets.
     folder_map = {}
@@ -48,7 +58,7 @@ def bulk_create_folders(folder_path_list, box_client, parent_id=0):
     # or while waiting for a pending folder creation to finish in another
     # greenlet.
     jobs = [
-        gevent.spawn(
+        pool.spawn(
             _create_nested_folder,
             folder_path,
             box_client,
