@@ -1,0 +1,3 @@
+[submodule "lib/box"]
+	path = lib/box
+	url = git@github.com:sprin/box.py.git
